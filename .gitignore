@@ -1,0 +1,26 @@
+# Eclipse workspace
+.metadata/
+
+# Maven build
+**/target/
+
+# Eclipse files
+**/.classpath
+**/.project
+**/.settings/
+
+# VS Code
+**/.vscode/
+
+# IntelliJ IDEA
+**/.idea/
+
+# Log files
+*.log
+
+# React / Node.js
+**/node_modules/
+
+# OS files
+Thumbs.db
+.DS_Store
