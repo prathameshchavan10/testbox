@@ -19,7 +19,9 @@ public class LoginResponseDTO {
     private String token;
 
     // Token type
-    private String type;
+    @Builder.Default
+    private String type = "Bearer";
+
 
     // User ID
     private Long id;

@@ -3,9 +3,11 @@ package com.testbox.service.impl;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.testbox.dto.LoginRequestDTO;
+import com.testbox.dto.LoginResponseDTO;
 import com.testbox.dto.RegisterRequestDTO;
 import com.testbox.dto.UserResponseDTO;
 import com.testbox.entity.User;
@@ -13,6 +15,7 @@ import com.testbox.exception.EmailAlreadyExistsException;
 import com.testbox.exception.InvalidCredentialsException;
 import com.testbox.exception.UserNotFoundException;
 import com.testbox.repository.UserRepository;
+import com.testbox.security.JwtService;
 import com.testbox.service.UserService;
 
 import lombok.RequiredArgsConstructor;
@@ -22,6 +25,8 @@ import lombok.RequiredArgsConstructor;
 public class UserServiceImpl implements UserService{
 	
 	private final UserRepository userRepository;
+	private final PasswordEncoder passwordEncoder;
+	private final JwtService jwtService;
 	
 
 	@Override
@@ -30,7 +35,7 @@ public class UserServiceImpl implements UserService{
 		User user = User.builder()
 				.name(request.getName())
 				.email(request.getEmail())
-				.password(request.getPassword()) //Encrypt using BCrypt later
+				.password(passwordEncoder.encode(request.getPassword())) //Encrypt using BCrypt later
 				.role(request.getRole())
 				.build();
 		
@@ -47,18 +52,29 @@ public class UserServiceImpl implements UserService{
 	}
 
 	@Override
-	public UserResponseDTO loginUser(LoginRequestDTO request) {
+	public LoginResponseDTO loginUser(LoginRequestDTO request) {
 		
 		//Find user by email
 		User user = userRepository.findByEmail(request.getEmail())
 		.orElseThrow(()->new InvalidCredentialsException("Invalid email or password"));
 		
 		//verify password
-		if (!user.getPassword().equals(request.getPassword())) {
-            throw new InvalidCredentialsException("Invalid email or password");
-        }
+		if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+		    throw new InvalidCredentialsException("Invalid email or password");
+		}
 		
-		return mapToUserResponseDTO(user);
+		 // Generate JWT token
+	    String token = jwtService.generateToken(user.getEmail());
+		
+	 // Return token along with user details
+	    return LoginResponseDTO.builder()
+	            .token(token)
+	            .type("Bearer")
+	            .id(user.getId())
+	            .name(user.getName())
+	            .email(user.getEmail())
+	            .role(user.getRole())
+	            .build();
 	}
 
 	@Override
