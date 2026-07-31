@@ -48,8 +48,9 @@ public class StudentAnswer {
 	    private AnswerOption selectedAnswer;
 
 	    // Whether the selected answer is correct
+	    @Builder.Default
 	    @Column(nullable = false)
-	    private Boolean isCorrect;
+	    private Boolean isCorrect = false;
 
 	    // Marks awarded for this question
 	    @Builder.Default

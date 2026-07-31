@@ -63,7 +63,7 @@ public class ExamAttempt {
 	    // When the student submitted the exam
 	    private LocalDateTime endTime;
 
-	    // Marks obtained by the student
+	 // Total marks scored by the student
 	    @Builder.Default
 	    @Column(nullable = false)
 	    private Integer score = 0;
