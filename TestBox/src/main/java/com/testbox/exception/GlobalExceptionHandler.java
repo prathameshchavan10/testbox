@@ -100,6 +100,15 @@ public class GlobalExceptionHandler {
 	            HttpStatus.BAD_REQUEST);
 	}
 	
+	// Handle Question not found
+	@ExceptionHandler(QuestionNotFoundException.class)
+	public ResponseEntity<String> handleQuestionNotFoundException(
+	        QuestionNotFoundException ex) {
+
+	    return new ResponseEntity<>(
+	            ex.getMessage(),
+	            HttpStatus.NOT_FOUND);
+	}
 	
 
 }
