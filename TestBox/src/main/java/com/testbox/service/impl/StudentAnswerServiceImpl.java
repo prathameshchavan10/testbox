@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 
 import com.testbox.dto.CreateStudentAnswerRequestDTO;
 import com.testbox.dto.StudentAnswerResponseDTO;
+import com.testbox.dto.UpdateStudentAnswerRequestDTO;
 import com.testbox.entity.ExamAttempt;
 import com.testbox.entity.Question;
 import com.testbox.entity.StudentAnswer;
@@ -164,4 +165,43 @@ public class StudentAnswerServiceImpl implements StudentAnswerService {
                     "Question does not belong to this exam");
         }
     }
+
+	@Override
+	public StudentAnswerResponseDTO updateStudentAnswer(Long id, UpdateStudentAnswerRequestDTO request) {
+	    // Fetch the StudentAnswer using the StudentAnswer ID
+	    StudentAnswer studentAnswer = studentAnswerRepository.findById(id)
+	            .orElseThrow(() ->
+	                    new StudentAnswerNotFoundException("Student answer not found"));
+
+	    // Get the related ExamAttempt
+	    ExamAttempt examAttempt = studentAnswer.getExamAttempt();
+
+	    // Prevent updating answers after the exam has been submitted
+	    if (examAttempt.getStatus() == AttemptStatus.SUBMITTED
+	            || examAttempt.getStatus() == AttemptStatus.AUTO_SUBMITTED) {
+	        throw new IllegalArgumentException(
+	                "Cannot update answer after the exam has been submitted");
+	    }
+
+	    // Check whether the updated answer is correct
+	    boolean isCorrect = request.getSelectedAnswer()
+	            == studentAnswer.getQuestion().getCorrectAnswer();
+
+	    // Update the selected answer
+	    studentAnswer.setSelectedAnswer(request.getSelectedAnswer());
+
+	    // Update correctness
+	    studentAnswer.setIsCorrect(isCorrect);
+
+	    // Update marks
+	    studentAnswer.setMarksAwarded(
+	            isCorrect ? studentAnswer.getQuestion().getMarks() : 0);
+
+	    // Save the updated answer
+	    StudentAnswer updatedStudentAnswer =
+	            studentAnswerRepository.save(studentAnswer);
+
+	    // Convert Entity into ResponseDTO
+	    return mapToStudentAnswerResponseDTO(updatedStudentAnswer);
+	}
 }
