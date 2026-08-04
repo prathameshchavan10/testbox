@@ -9,54 +9,64 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import com.testbox.entity.User;
 
+public class CustomUserDetails implements UserDetails {
 
-public class CustomUserDetails implements UserDetails{
-	
-	private final User user;
-	
-	public CustomUserDetails(User user)
-	{
-		this.user = user;
-	}
+    private final User user;
 
-	@Override
-	public Collection<? extends GrantedAuthority> getAuthorities() {
-		// Convert our Role enum into Spring Security Authority
-		return List.of(
-				new SimpleGrantedAuthority(
-						"ROLE_" + user.getRole().name()));
-	}
+    public CustomUserDetails(User user) {
+        this.user = user;
+    }
 
-	@Override
-	public String getPassword() {
-	
-		return user.getPassword();
-	}
+    /**
+     * Returns the logged-in User entity.
+     * This will be used in the Service layer instead of fetching
+     * the user again from the database.
+     */
+    public User getUser() {
+        return user;
+    }
 
-	@Override
-	public String getUsername() {
-		
-		return user.getEmail();
-	}
-	
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+
+        return List.of(
+                new SimpleGrantedAuthority(
+                        "ROLE_" + user.getRole().name()));
+    }
+
+    @Override
+    public String getPassword() {
+
+        return user.getPassword();
+    }
+
+    @Override
+    public String getUsername() {
+
+        return user.getEmail();
+    }
+
     @Override
     public boolean isAccountNonExpired() {
+
         return true;
     }
 
     @Override
     public boolean isAccountNonLocked() {
+
         return true;
     }
 
     @Override
     public boolean isCredentialsNonExpired() {
+
         return true;
     }
 
     @Override
     public boolean isEnabled() {
+
         return user.getEnabled();
     }
-
 }

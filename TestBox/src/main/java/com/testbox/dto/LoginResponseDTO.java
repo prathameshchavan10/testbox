@@ -15,23 +15,16 @@ import lombok.Setter;
 @Builder
 public class LoginResponseDTO {
 
-    // JWT authentication token
     private String token;
 
-    // Token type
     @Builder.Default
     private String type = "Bearer";
 
-
-    // User ID
     private Long id;
 
-    // User's full name
     private String name;
 
-    // User's registered email
     private String email;
 
-    // User role
     private Role role;
 }

@@ -3,7 +3,11 @@ package com.testbox.service.impl;
 import java.time.LocalDateTime;
 import java.util.List;
 
+
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+
 
 import com.testbox.dto.CreateExamAttemptRequestDTO;
 import com.testbox.dto.ExamAttemptResponseDTO;
@@ -14,10 +18,9 @@ import com.testbox.enums.Role;
 import com.testbox.exception.ExamAttemptAlreadyExistsException;
 import com.testbox.exception.ExamAttemptNotFoundException;
 import com.testbox.exception.ExamNotFoundException;
-import com.testbox.exception.UserNotFoundException;
 import com.testbox.repository.ExamAttemptRepository;
 import com.testbox.repository.ExamRepository;
-import com.testbox.repository.UserRepository;
+import com.testbox.security.CustomUserDetails;
 import com.testbox.service.ExamAttemptService;
 
 import lombok.RequiredArgsConstructor;
@@ -27,45 +30,73 @@ import lombok.RequiredArgsConstructor;
 public class ExamAttemptServiceImpl implements ExamAttemptService{
 	
 	private final ExamAttemptRepository examAttemptRepository;
-	private final UserRepository userRepository;
+	
 	private final ExamRepository examRepository;
 	
+	/**
+	 * Returns the currently logged-in student.
+	 */
+	private User getLoggedInStudent() {
+
+	    Authentication authentication =
+	            SecurityContextHolder.getContext().getAuthentication();
+
+	    CustomUserDetails userDetails =
+	            (CustomUserDetails) authentication.getPrincipal();
+
+	    User student = userDetails.getUser();
+
+	    if (student.getRole() != Role.STUDENT) {
+	        throw new IllegalArgumentException(
+	                "Only students can start exams.");
+	    }
+
+	    return student;
+	}
+	
+
 	@Override
 	public ExamAttemptResponseDTO createExamAttempt(CreateExamAttemptRequestDTO request) {
-        // Fetch the Student using the studentId received in the RequestDTO
-        User student = userRepository.findById(request.getStudentId())
-                .orElseThrow(() ->
-                        new UserNotFoundException("Student not found"));
+	    // Fetch the logged-in student
+	    User student = getLoggedInStudent();
 
-        // Fetch the Exam using the examId received in the RequestDTO
-        Exam exam = examRepository.findById(request.getExamId())
-                .orElseThrow(() ->
-                        new ExamNotFoundException("Exam not found"));
+	    // Fetch the Exam
+	    Exam exam = examRepository.findById(request.getExamId())
+	            .orElseThrow(() ->
+	                    new ExamNotFoundException("Exam not found"));
 
-        // Validate business rules
-        validateExamAttempt(student, exam);
+	    // Validate business rules
+	    validateExamAttempt(student, exam);
 
-        // Convert the CreateExamAttemptRequestDTO into an ExamAttempt Entity
-        ExamAttempt examAttempt = ExamAttempt.builder()
-                .student(student)
-                .exam(exam)
-                .build();
+	    // Create ExamAttempt Entity
+	    ExamAttempt examAttempt = ExamAttempt.builder()
+	            .student(student)
+	            .exam(exam)
+	            .build();
 
-        // Save the ExamAttempt Entity into the database
-        ExamAttempt savedExamAttempt = examAttemptRepository.save(examAttempt);
+	    // Save
+	    ExamAttempt savedExamAttempt =
+	            examAttemptRepository.save(examAttempt);
 
-        // Convert the saved ExamAttempt Entity into ExamAttemptResponseDTO
-        return mapToExamAttemptResponseDTO(savedExamAttempt);
+	    // Return DTO
+	    return mapToExamAttemptResponseDTO(savedExamAttempt);
 	}
+	
+	
 	@Override
 	public List<ExamAttemptResponseDTO> getAllExamAttempts() {
-        // Fetch all ExamAttempt Entities from the database
-        // Convert the list of ExamAttempt Entities into ExamAttemptResponseDTOs
-        return examAttemptRepository.findAll()
-                .stream()
-                .map(this::mapToExamAttemptResponseDTO)
-                .toList();
+
+	    // Fetch the logged-in student
+	    User student = getLoggedInStudent();
+
+	    // Fetch only this student's exam attempts
+	    return examAttemptRepository.findByStudentId(student.getId())
+	            .stream()
+	            .map(this::mapToExamAttemptResponseDTO)
+	            .toList();
 	}
+	
+	
 	@Override
 	public ExamAttemptResponseDTO getExamAttemptById(Long id) {
         // Fetch the ExamAttempt Entity using the Attempt ID
@@ -76,6 +107,8 @@ public class ExamAttemptServiceImpl implements ExamAttemptService{
         // Convert ExamAttempt Entity into ExamAttemptResponseDTO
         return mapToExamAttemptResponseDTO(examAttempt);
 	}
+	
+	
 	@Override
 	public void deleteExamAttempt(Long id) {
         // Fetch the ExamAttempt Entity using the Attempt ID

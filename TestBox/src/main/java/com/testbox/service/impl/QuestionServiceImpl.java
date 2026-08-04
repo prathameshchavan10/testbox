@@ -1,8 +1,11 @@
 package com.testbox.service.impl;
 
-import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import com.testbox.dto.CreateQuestionRequestDTO;
@@ -10,10 +13,12 @@ import com.testbox.dto.QuestionResponseDTO;
 import com.testbox.dto.UpdateQuestionRequestDTO;
 import com.testbox.entity.Exam;
 import com.testbox.entity.Question;
+import com.testbox.entity.User;
 import com.testbox.exception.ExamNotFoundException;
 import com.testbox.exception.QuestionNotFoundException;
 import com.testbox.repository.ExamRepository;
 import com.testbox.repository.QuestionRepository;
+import com.testbox.security.CustomUserDetails;
 import com.testbox.service.QuestionService;
 
 import lombok.RequiredArgsConstructor;
@@ -21,22 +26,78 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class QuestionServiceImpl implements QuestionService {
-	
-	private final QuestionRepository questionRepository;
-	private final ExamRepository examRepository;
-	
-	@Override
-	public QuestionResponseDTO createQuestion(CreateQuestionRequestDTO request) {
-		
-		//Fetch the exam using the emaxId recieved in the the RequestDTO
-		Exam exam = examRepository.findById(request.getExamId()).orElseThrow(()->new ExamNotFoundException("Exam not found"));
-		
-		// Validate business rules
-		validateQuestion(request, exam);
-		
 
-		
-		// Convert the CreateQuestionRequestDTO into a Question Entity
+    private final QuestionRepository questionRepository;
+    private final ExamRepository examRepository;
+	
+	
+    /**
+     * Returns the currently logged-in teacher.
+     */
+    private User getLoggedInTeacher() {
+
+        Authentication authentication =
+                SecurityContextHolder.getContext().getAuthentication();
+
+        CustomUserDetails userDetails =
+                (CustomUserDetails) authentication.getPrincipal();
+
+        return userDetails.getUser();
+    }
+    
+    /**
+     * Checks whether the logged-in teacher owns the exam.
+     */
+    private Exam getTeacherExam(Long examId) throws AccessDeniedException {
+
+        Exam exam = examRepository.findById(examId)
+                .orElseThrow(() ->
+                        new ExamNotFoundException("Exam not found."));
+
+        User loggedInTeacher = getLoggedInTeacher();
+
+        if (!exam.getTeacher().getId().equals(loggedInTeacher.getId())) {
+            throw new AccessDeniedException(
+                    "You can manage questions only for your own exams.");
+        }
+
+        return exam;
+    }
+    
+    /**
+     * Prevent duplicate questions in the same exam.
+     */
+    private void validateDuplicateQuestion(
+            String questionText,
+            Long examId) {
+
+        if (questionRepository.existsByQuestionTextAndExamId(
+                questionText,
+                examId)) {
+
+            throw new IllegalArgumentException(
+                    "Question already exists in this exam.");
+        }
+    }
+    
+    
+    // ==========================================================
+    // CREATE QUESTION
+    // ==========================================================
+
+    @Override
+    public QuestionResponseDTO createQuestion(
+            CreateQuestionRequestDTO request) {
+
+        // Fetch the exam and verify ownership
+        Exam exam = getTeacherExam(request.getExamId());
+
+        // Check duplicate question
+        validateDuplicateQuestion(
+                request.getQuestionText(),
+                request.getExamId());
+
+        // Create Question Entity
         Question question = Question.builder()
                 .questionText(request.getQuestionText())
                 .optionA(request.getOptionA())
@@ -48,52 +109,111 @@ public class QuestionServiceImpl implements QuestionService {
                 .exam(exam)
                 .build();
 
-     // Save the Question Entity into the database
-        Question savedQuestion = questionRepository.save(question);
-        
-     // Convert the saved Question Entity into QuestionResponseDTO
-        return mapToQuestionResponseDTO(savedQuestion);
-	}
+        // Save Question
+        Question savedQuestion =
+                questionRepository.save(question);
 
-	@Override
-	public List<QuestionResponseDTO> getAllQuestions() {
-		
-        // Fetch all Question Entities from the database
-        // Convert the list of Question Entities into QuestionResponseDTOs
-        return questionRepository.findAll()
+        // Convert Entity -> DTO
+        return mapToQuestionResponseDTO(savedQuestion);
+    }
+    // ==========================================================
+    // GET ALL QUESTIONS
+    // ==========================================================
+
+    @Override
+    public List<QuestionResponseDTO> getAllQuestions() {
+
+        User loggedInTeacher = getLoggedInTeacher();
+
+        List<Exam> exams =
+                examRepository.findByTeacherId(loggedInTeacher.getId());
+
+        List<QuestionResponseDTO> questions = new ArrayList<>();
+
+        for (Exam exam : exams) {
+
+            List<Question> examQuestions =
+                    questionRepository.findByExamId(exam.getId());
+
+            questions.addAll(
+                    examQuestions.stream()
+                            .map(this::mapToQuestionResponseDTO)
+                            .toList()
+            );
+        }
+
+        return questions;
+    }
+
+    // ==========================================================
+    // GET QUESTION BY ID
+    // ==========================================================
+
+    @Override
+    public QuestionResponseDTO getQuestionById(Long id) {
+
+        Question question = questionRepository.findById(id)
+                .orElseThrow(() ->
+                        new QuestionNotFoundException("Question not found."));
+
+        //verify logged in teacher owns the exam
+        getTeacherExam(question.getExam().getId());
+        
+        //returns dto
+        return mapToQuestionResponseDTO(question);
+    }
+
+    // ==========================================================
+    // GET QUESTIONS BY EXAM
+    // ==========================================================
+
+    @Override
+    public List<QuestionResponseDTO> getQuestionsByExam(Long examId) {
+
+        // Verify exam exists
+        examRepository.findById(examId)
+                .orElseThrow(() ->
+                        new ExamNotFoundException("Exam not found."));
+
+        return questionRepository.findByExamId(examId)
                 .stream()
                 .map(this::mapToQuestionResponseDTO)
                 .toList();
-	}
+    }
+    // ==========================================================
+    // UPDATE QUESTION
+    // ==========================================================
 
-	@Override
-	public QuestionResponseDTO getQuestionById(Long id) {
-		
-        // Fetch the Question Entity using the Question ID
+    @Override
+    public QuestionResponseDTO updateQuestion(
+            Long id,
+            UpdateQuestionRequestDTO request) {
+
+        // Fetch Question
         Question question = questionRepository.findById(id)
                 .orElseThrow(() ->
-                        new QuestionNotFoundException("Question not found"));
+                        new QuestionNotFoundException("Question not found."));
 
-        // Convert Question Entity into QuestionResponseDTO
-        return mapToQuestionResponseDTO(question);
-	}
+        // Verify logged-in teacher owns the exam
+        Exam exam = getTeacherExam(request.getExamId());
 
-	@Override
-	public QuestionResponseDTO updateQuestion(Long id, UpdateQuestionRequestDTO request) {
-        // Fetch the Question Entity using the Question ID
-        Question question = questionRepository.findById(id)
-                .orElseThrow(() ->
-                        new QuestionNotFoundException("Question not found"));
+        // If moving the question to another exam is not allowed
+        if (!question.getExam().getId().equals(request.getExamId())) {
+            throw new IllegalArgumentException(
+                    "Question cannot be moved to another exam.");
+        }
 
-        // Fetch the Exam using the examId received in the RequestDTO
-        Exam exam = examRepository.findById(request.getExamId())
-                .orElseThrow(() ->
-                        new ExamNotFoundException("Exam not found"));
-        
-     // Validate business rules
-        validateQuestion(request, exam);
+        // Check duplicate question
+        if (!question.getQuestionText().equals(request.getQuestionText())
+                && questionRepository.existsByQuestionTextAndExamId(
+                        request.getQuestionText(),
+                        request.getExamId())) {
 
-        // Update the Question Entity with the new values
+            throw new IllegalArgumentException(
+                    "Question already exists in this exam.");
+        }
+
+        // Update fields
         question.setQuestionText(request.getQuestionText());
         question.setOptionA(request.getOptionA());
         question.setOptionB(request.getOptionB());
@@ -103,34 +223,40 @@ public class QuestionServiceImpl implements QuestionService {
         question.setMarks(request.getMarks());
         question.setExam(exam);
 
-        // Save the updated Question Entity
-        Question updatedQuestion = questionRepository.save(question);
+        // Save
+        Question updatedQuestion =
+                questionRepository.save(question);
 
-        // Convert Question Entity into QuestionResponseDTO
+        // Return DTO
         return mapToQuestionResponseDTO(updatedQuestion);
-	
-	}
+    }
+    
 
-	@Override
-	public void deleteQuestion(Long id) {
-        // Fetch the Question Entity using the Question ID
+    // ==========================================================
+    // DELETE QUESTION
+    // ==========================================================
+
+    @Override
+    public void deleteQuestion(Long id) {
+
+        // Fetch Question
         Question question = questionRepository.findById(id)
                 .orElseThrow(() ->
-                        new QuestionNotFoundException("Question not found"));
-        
-     // Prevent deleting questions after the exam has started
-        if (question.getExam().getStartTime().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException(
-                    "Cannot delete questions after the exam has started");
-        }
+                        new QuestionNotFoundException("Question not found."));
 
-        // Delete the Question Entity
+        // Verify logged-in teacher owns the exam
+        getTeacherExam(question.getExam().getId());
+
+        // Delete Question
         questionRepository.delete(question);
-		
-	}
-	
-	// Convert Question Entity into QuestionResponseDTO
-    private QuestionResponseDTO mapToQuestionResponseDTO(Question question) {
+    }
+
+    // ==========================================================
+    // ENTITY -> DTO MAPPER
+    // ==========================================================
+
+    private QuestionResponseDTO mapToQuestionResponseDTO(
+            Question question) {
 
         return QuestionResponseDTO.builder()
                 .id(question.getId())
@@ -145,60 +271,5 @@ public class QuestionServiceImpl implements QuestionService {
                 .examTitle(question.getExam().getTitle())
                 .build();
     }
-    
-    //validate business rules before creating a question
-    private void validateQuestion(CreateQuestionRequestDTO request, Exam exam)
-    {
-//    	//Prevent duplicate questions in same exam
-//    	if(questionRepository.existsByQuestionTextAndExamId(
-//    			request.getQuestionText(), exam.getId())){
-//    				
-//    		throw new IllegalArgumentException(
-//    				"Question already exists in this exam");
-//    			}
-    	
-    	//prevent creating questions after the exam has started
-        if(exam.getStartTime().isBefore(LocalDateTime.now()))
-        {
-        	  throw new IllegalArgumentException(
-                      "Cannot add questions after the exam has started");
-        }
-    }
-    
-    // Validate business rules before updating a question
-    private void validateQuestion(UpdateQuestionRequestDTO request, Exam exam) {
-
-//        // Prevent duplicate questions in the same exam
-//        if (questionRepository.existsByQuestionTextAndExamId(
-//                request.getQuestionText(), exam.getId())) {
-//
-//            throw new IllegalArgumentException(
-//                    "Question already exists in this exam");
-//        }
-
-        // Prevent updating questions after the exam has started
-        if (exam.getStartTime().isBefore(LocalDateTime.now())) {
-
-            throw new IllegalArgumentException(
-                    "Cannot update questions after the exam has started");
-        }
-    }
-
-	@Override
-	public List<QuestionResponseDTO> getQuestionsByExamId(Long examId) {
-		
-	    // Check if the exam exists
-	    examRepository.findById(examId)
-	            .orElseThrow(() ->
-	                    new ExamNotFoundException("Exam not found"));
-
-	    // Fetch all questions for the given exam
-	    return questionRepository.findByExamId(examId)
-	            .stream()
-	            .map(this::mapToQuestionResponseDTO)
-	            .toList();
-	}
-    
-    
 
 }

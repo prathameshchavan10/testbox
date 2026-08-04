@@ -2,6 +2,9 @@ package com.testbox.service.impl;
 
 import java.util.List;
 
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import com.testbox.dto.CreateExamRequestDTO;
@@ -11,9 +14,9 @@ import com.testbox.entity.Exam;
 import com.testbox.entity.User;
 import com.testbox.enums.Role;
 import com.testbox.exception.ExamNotFoundException;
-import com.testbox.exception.UserNotFoundException;
 import com.testbox.repository.ExamRepository;
 import com.testbox.repository.UserRepository;
+import com.testbox.security.CustomUserDetails;
 import com.testbox.service.ExamService;
 
 import lombok.RequiredArgsConstructor;
@@ -25,16 +28,35 @@ public class ExamServiceImpl implements ExamService {
     private final ExamRepository examRepository;
     private final UserRepository userRepository;
 
+    /**
+     * Fetch the currently logged-in teacher.
+     */
+    private User getLoggedInTeacher() {
+
+        Authentication authentication =
+                SecurityContextHolder.getContext().getAuthentication();
+
+        CustomUserDetails userDetails =
+                (CustomUserDetails) authentication.getPrincipal();
+
+        User teacher = userDetails.getUser();
+
+        if (teacher.getRole() != Role.TEACHER) {
+            throw new AccessDeniedException(
+                    "Only teachers can perform this operation.");
+        }
+
+        return teacher;
+    }
+    
     @Override
     public ExamResponseDTO createExam(CreateExamRequestDTO request) {
 
-        // Fetch teacher using teacherId
-        User teacher = userRepository.findById(request.getTeacherId())
-                .orElseThrow(() ->
-                        new UserNotFoundException("Teacher not found"));
+        // Fetch the logged-in teacher
+        User teacher = getLoggedInTeacher();
 
         // Validate business rules
-        validateExam(request, teacher);
+        validateExam(request);
 
         // Convert RequestDTO into Exam Entity
         Exam exam = Exam.builder()
@@ -58,7 +80,6 @@ public class ExamServiceImpl implements ExamService {
     @Override
     public List<ExamResponseDTO> getAllExams() {
 
-        // Fetch all Exams and convert them into ResponseDTOs
         return examRepository.findAll()
                 .stream()
                 .map(this::mapToExamResponseDTO)
@@ -68,15 +89,13 @@ public class ExamServiceImpl implements ExamService {
     @Override
     public ExamResponseDTO getExamById(Long id) {
 
-        // Fetch Exam using ID
         Exam exam = examRepository.findById(id)
                 .orElseThrow(() ->
                         new ExamNotFoundException("Exam not found"));
 
-        // Convert Entity into ResponseDTO
         return mapToExamResponseDTO(exam);
     }
-
+    
     @Override
     public ExamResponseDTO updateExam(Long id, UpdateExamRequestDTO request) {
 
@@ -85,13 +104,17 @@ public class ExamServiceImpl implements ExamService {
                 .orElseThrow(() ->
                         new ExamNotFoundException("Exam not found"));
 
-        // Fetch Teacher using teacherId
-        User teacher = userRepository.findById(request.getTeacherId())
-                .orElseThrow(() ->
-                        new UserNotFoundException("Teacher not found"));
+        // Fetch logged-in teacher
+        User teacher = getLoggedInTeacher();
+
+        // Ensure the logged-in teacher owns this exam
+        if (!exam.getTeacher().getId().equals(teacher.getId())) {
+            throw new AccessDeniedException(
+                    "You can update only your own exams.");
+        }
 
         // Validate business rules
-        validateExam(request, teacher);
+        validateExam(request);
 
         // Update Exam details
         exam.setTitle(request.getTitle());
@@ -101,7 +124,6 @@ public class ExamServiceImpl implements ExamService {
         exam.setPassingMarks(request.getPassingMarks());
         exam.setStartTime(request.getStartTime());
         exam.setEndTime(request.getEndTime());
-        exam.setTeacher(teacher);
 
         // Save updated Exam
         Exam updatedExam = examRepository.save(exam);
@@ -118,55 +140,48 @@ public class ExamServiceImpl implements ExamService {
                 .orElseThrow(() ->
                         new ExamNotFoundException("Exam not found"));
 
+        // Fetch logged-in teacher
+        User teacher = getLoggedInTeacher();
+
+        // Ensure the logged-in teacher owns this exam
+        if (!exam.getTeacher().getId().equals(teacher.getId())) {
+            throw new AccessDeniedException(
+                    "You can delete only your own exams.");
+        }
+
         // Delete Exam
         examRepository.delete(exam);
     }
-
+    
     // Validate business rules before creating an Exam
-    private void validateExam(CreateExamRequestDTO request, User teacher) {
-
-        // Debug (remove after testing)
-        System.out.println("Teacher ID   : " + teacher.getId());
-        System.out.println("Teacher Name : " + teacher.getName());
-        System.out.println("Teacher Role : " + teacher.getRole());
-
-        // Only teachers can create exams
-        if (teacher.getRole() != Role.TEACHER) {
-            throw new IllegalArgumentException("Selected user is not a teacher");
-        }
+    private void validateExam(CreateExamRequestDTO request) {
 
         // Passing marks cannot exceed total marks
         if (request.getPassingMarks() > request.getTotalMarks()) {
-            throw new IllegalArgumentException("Passing marks cannot be greater than total marks");
+            throw new IllegalArgumentException(
+                    "Passing marks cannot be greater than total marks");
         }
 
         // End time must be after start time
         if (!request.getEndTime().isAfter(request.getStartTime())) {
-            throw new IllegalArgumentException("End time must be after the start time");
+            throw new IllegalArgumentException(
+                    "End time must be after the start time");
         }
     }
 
     // Validate business rules before updating an Exam
-    private void validateExam(UpdateExamRequestDTO request, User teacher) {
-
-        // Debug (remove after testing)
-        System.out.println("Teacher ID   : " + teacher.getId());
-        System.out.println("Teacher Name : " + teacher.getName());
-        System.out.println("Teacher Role : " + teacher.getRole());
-
-        // Only teachers can update exams
-        if (teacher.getRole() != Role.TEACHER) {
-            throw new IllegalArgumentException("Selected user is not a teacher");
-        }
+    private void validateExam(UpdateExamRequestDTO request) {
 
         // Passing marks cannot exceed total marks
         if (request.getPassingMarks() > request.getTotalMarks()) {
-            throw new IllegalArgumentException("Passing marks cannot be greater than total marks");
+            throw new IllegalArgumentException(
+                    "Passing marks cannot be greater than total marks");
         }
 
         // End time must be after start time
         if (!request.getEndTime().isAfter(request.getStartTime())) {
-            throw new IllegalArgumentException("End time must be after the start time");
+            throw new IllegalArgumentException(
+                    "End time must be after the start time");
         }
     }
 

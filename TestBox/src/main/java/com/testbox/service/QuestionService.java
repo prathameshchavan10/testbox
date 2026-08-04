@@ -8,20 +8,23 @@ import com.testbox.dto.UpdateQuestionRequestDTO;
 
 public interface QuestionService {
 
-    // Create a new Question
+    // Create Question
     QuestionResponseDTO createQuestion(CreateQuestionRequestDTO request);
 
-    // Fetch all Questions
+    // Get All Questions
     List<QuestionResponseDTO> getAllQuestions();
 
-    // Fetch Question by ID
+    // Get Question By Id
     QuestionResponseDTO getQuestionById(Long id);
 
-    // Update an existing Question
-    QuestionResponseDTO updateQuestion(Long id, UpdateQuestionRequestDTO request);
+    // Get Questions By Exam
+    List<QuestionResponseDTO> getQuestionsByExam(Long examId);
 
-    // Delete Question by ID
+    // Update Question
+    QuestionResponseDTO updateQuestion(
+            Long id,
+            UpdateQuestionRequestDTO request);
+
+    // Delete Question
     void deleteQuestion(Long id);
-    
-    List<QuestionResponseDTO> getQuestionsByExamId(Long examId);
 }

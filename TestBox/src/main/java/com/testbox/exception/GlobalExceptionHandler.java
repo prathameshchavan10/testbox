@@ -2,10 +2,12 @@ package com.testbox.exception;
 
 import java.util.HashMap;
 import java.util.Map;
-
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -18,7 +20,7 @@ public class GlobalExceptionHandler {
     // Validation Exceptions
     // ==========================================================
 
-    // Handle Bean Validation (@Valid) errors
+    // Handle Bean Validation (@Valid)
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidationException(
             MethodArgumentNotValidException ex) {
@@ -31,13 +33,23 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
     }
 
-    // Handle invalid path variable (e.g. /users/abc)
+    // Handle invalid path variable
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<String> handleMethodArgumentTypeMismatchException(
             MethodArgumentTypeMismatchException ex) {
 
         return new ResponseEntity<>(
                 "Invalid input. Please provide a valid numeric ID.",
+                HttpStatus.BAD_REQUEST);
+    }
+
+    // Handle invalid JSON request body
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<String> handleHttpMessageNotReadableException(
+            HttpMessageNotReadableException ex) {
+
+        return new ResponseEntity<>(
+                "Invalid request. Please check the request body and data types.",
                 HttpStatus.BAD_REQUEST);
     }
 
@@ -52,7 +64,7 @@ public class GlobalExceptionHandler {
     }
 
     // ==========================================================
-    // Authentication Exceptions
+    // Security Exceptions
     // ==========================================================
 
     // Handle invalid login credentials
@@ -62,6 +74,26 @@ public class GlobalExceptionHandler {
 
         return new ResponseEntity<>(
                 ex.getMessage(),
+                HttpStatus.UNAUTHORIZED);
+    }
+
+    // Handle unauthorized access (403)
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<String> handleAccessDeniedException(
+            AccessDeniedException ex) {
+
+        return new ResponseEntity<>(
+                "You are not authorized to access this resource.",
+                HttpStatus.FORBIDDEN);
+    }
+
+    // Handle authentication failure (401)
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<String> handleAuthenticationException(
+            AuthenticationException ex) {
+
+        return new ResponseEntity<>(
+                "Authentication failed.",
                 HttpStatus.UNAUTHORIZED);
     }
 
@@ -138,32 +170,10 @@ public class GlobalExceptionHandler {
     }
 
     // ==========================================================
-    // Generic Exception
+    // Student Answer Exceptions
     // ==========================================================
 
-    // Handle all unexpected exceptions
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<String> handleException(Exception ex) {
-
-        // Print stack trace for debugging
-        ex.printStackTrace();
-
-        return new ResponseEntity<>(
-                "Something went wrong. Please try again later.",
-                HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-    
- // Handle invalid JSON or datatype mismatch
-    @ExceptionHandler(HttpMessageNotReadableException.class)
-    public ResponseEntity<String> handleHttpMessageNotReadableException(
-            HttpMessageNotReadableException ex) {
-
-        return new ResponseEntity<>(
-                "Invalid request. Please check the request body and data types.",
-                HttpStatus.BAD_REQUEST);
-    }
-    
- // Handle StudentAnswer not found
+    // Handle student answer not found
     @ExceptionHandler(StudentAnswerNotFoundException.class)
     public ResponseEntity<String> handleStudentAnswerNotFoundException(
             StudentAnswerNotFoundException ex) {
@@ -172,8 +182,12 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 HttpStatus.NOT_FOUND);
     }
-    
- // Handle Result not found
+
+    // ==========================================================
+    // Result Exceptions
+    // ==========================================================
+
+    // Handle result not found
     @ExceptionHandler(ResultNotFoundException.class)
     public ResponseEntity<String> handleResultNotFoundException(
             ResultNotFoundException ex) {
@@ -183,4 +197,18 @@ public class GlobalExceptionHandler {
                 HttpStatus.NOT_FOUND);
     }
 
+    // ==========================================================
+    // Generic Exception
+    // ==========================================================
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<String> handleException(Exception ex) {
+
+        ex.printStackTrace();
+
+        return new ResponseEntity<>(
+                "Something went wrong. Please try again later.",
+                HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+    
 }

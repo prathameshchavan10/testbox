@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,42 +26,48 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class UserController {
 
-	private final UserService userService;
-	
-	//for register purpose
-	@PostMapping("/register")
-	public ResponseEntity<UserResponseDTO> registerUser(
-			@Valid @RequestBody RegisterRequestDTO request)
-	{
-		UserResponseDTO response = userService.registerUser(request);
-		return ResponseEntity.status(HttpStatus.CREATED).body(response);	
-	}
-	
-	//for login purpose
-	@PostMapping("/login")
-	public ResponseEntity<LoginResponseDTO> loginUser(
-			@Valid @RequestBody LoginRequestDTO request)
-	{
-		LoginResponseDTO response = userService.loginUser(request);
-		return ResponseEntity.ok(response);
-	}
-	
-	//get user by id
-	@GetMapping("/{id}")
-	public ResponseEntity<UserResponseDTO> getUserById(
-			@PathVariable Long id)
-	{
-		UserResponseDTO response = userService.getUserById(id);
-		return ResponseEntity.ok(response);
-	}
-	
-	// Get all users
-	@GetMapping
-	public ResponseEntity<List<UserResponseDTO>> getAllUsers() {
+    private final UserService userService;
 
-	    List<UserResponseDTO> users = userService.getAllUsers();
+    // Register User (ADMIN only)
+    @PostMapping("/register")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserResponseDTO> registerUser(
+            @Valid @RequestBody RegisterRequestDTO request) {
 
-	    return ResponseEntity.ok(users);
-	}
-	
+        UserResponseDTO response = userService.registerUser(request);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    // Login (Public)
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponseDTO> loginUser(
+            @Valid @RequestBody LoginRequestDTO request) {
+
+        LoginResponseDTO response = userService.loginUser(request);
+
+        return ResponseEntity.ok(response);
+    }
+
+    // Get User By Id (ADMIN only)
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserResponseDTO> getUserById(
+            @PathVariable Long id) {
+
+        UserResponseDTO response = userService.getUserById(id);
+
+        return ResponseEntity.ok(response);
+    }
+
+    // Get All Users (ADMIN only)
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<UserResponseDTO>> getAllUsers() {
+
+        List<UserResponseDTO> users = userService.getAllUsers();
+
+        return ResponseEntity.ok(users);
+    }
+
 }

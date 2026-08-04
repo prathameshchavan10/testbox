@@ -3,15 +3,10 @@ package com.testbox.controller;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
 
 import com.testbox.dto.CreateQuestionRequestDTO;
 import com.testbox.dto.QuestionResponseDTO;
@@ -24,53 +19,92 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/questions")
 @RequiredArgsConstructor
+@Validated
 public class QuestionController {
 
-	public final QuestionService questionService;
-	
-	// Create a new Question
+    private final QuestionService questionService;
+
+    // ==========================================================
+    // CREATE QUESTION
+    // ==========================================================
+
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public QuestionResponseDTO createQuestion(
+    @PreAuthorize("hasRole('TEACHER')")
+    public ResponseEntity<QuestionResponseDTO> createQuestion(
             @Valid @RequestBody CreateQuestionRequestDTO request) {
 
-        return questionService.createQuestion(request);
+        QuestionResponseDTO response =
+                questionService.createQuestion(request);
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
     }
-    
-    // Fetch all Questions
+
+    // ==========================================================
+    // GET ALL QUESTIONS
+    // ==========================================================
+
     @GetMapping
-    public List<QuestionResponseDTO> getAllQuestions() {
+    public ResponseEntity<List<QuestionResponseDTO>> getAllQuestions() {
 
-        return questionService.getAllQuestions();
+        return ResponseEntity.ok(
+                questionService.getAllQuestions());
     }
-    
-    // Fetch Question by ID
+
+    // ==========================================================
+    // GET QUESTION BY ID
+    // ==========================================================
+
     @GetMapping("/{id}")
-    public QuestionResponseDTO getQuestionById(@PathVariable Long id) {
+    public ResponseEntity<QuestionResponseDTO> getQuestionById(
+            @PathVariable Long id) {
 
-        return questionService.getQuestionById(id);
+        return ResponseEntity.ok(
+                questionService.getQuestionById(id));
     }
-    
-    // Update an existing Question
+
+    // ==========================================================
+    // GET QUESTIONS BY EXAM
+    // ==========================================================
+
+    @GetMapping("/exam/{examId}")
+    public ResponseEntity<List<QuestionResponseDTO>>
+            getQuestionsByExam(
+                    @PathVariable Long examId) {
+
+        return ResponseEntity.ok(
+                questionService.getQuestionsByExam(examId));
+    }
+
+    // ==========================================================
+    // UPDATE QUESTION
+    // ==========================================================
+
     @PutMapping("/{id}")
-    public QuestionResponseDTO updateQuestion(
+    @PreAuthorize("hasRole('TEACHER')")
+    public ResponseEntity<QuestionResponseDTO> updateQuestion(
             @PathVariable Long id,
             @Valid @RequestBody UpdateQuestionRequestDTO request) {
 
-        return questionService.updateQuestion(id, request);
+        QuestionResponseDTO response =
+                questionService.updateQuestion(id, request);
+
+        return ResponseEntity.ok(response);
     }
-    
-    // Delete Question by ID
+
+    // ==========================================================
+    // DELETE QUESTION
+    // ==========================================================
+
     @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteQuestion(@PathVariable Long id) {
+    @PreAuthorize("hasRole('TEACHER')")
+    public ResponseEntity<String> deleteQuestion(
+            @PathVariable Long id) {
 
         questionService.deleteQuestion(id);
-    }
-    
-    @GetMapping("/exam/{examId}")
-    public List<QuestionResponseDTO> getQuestionsByExamId(
-            @PathVariable Long examId){
-    	return null;
+
+        return ResponseEntity.ok(
+                "Question deleted successfully.");
     }
 }

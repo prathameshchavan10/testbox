@@ -14,9 +14,6 @@ import lombok.Setter;
 @Builder
 public class CreateExamAttemptRequestDTO {
 
-    @NotNull(message = "Student ID is required")
-    private Long studentId;
-
     @NotNull(message = "Exam ID is required")
     private Long examId;
 }
